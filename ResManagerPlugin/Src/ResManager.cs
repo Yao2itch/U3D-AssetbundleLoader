@@ -28,6 +28,62 @@ namespace ResManagerPlugin
         /// </summary>
         /// <param name="abPath"> Assetbundle 路径 </param>
         /// <param name="abName"> Assetbundle 名称 </param>
+        /// <param name="objName"> 对象名 </param>
+        public static ResUnit Load( string abPath, string abName, string objName )
+        {
+            ResUnit unit = null;
+            
+            string fullPath = Path.Combine( abPath, abName );
+
+            if( _resCache != null 
+                && _resCache.ContainsKey( abName ) )
+            {
+                unit = _resCache[ abName ].FindResUnit( objName );
+                
+                return unit;
+            }
+
+            ResBundle resBundle = new ResBundle();
+            resBundle.Name = abName;
+            
+            AssetBundle ab = AssetBundle.LoadFromFile( fullPath );
+            
+            if( ab != null )
+            {
+                var objs = ab.LoadAllAssets();
+                
+                if ( objs != null )
+                {
+                    resBundle.ResUnitCount = objs.Length;
+                    
+                    for ( int i = 0; i < objs.Length; ++i )
+                    {
+                        ResUnit u = new ResUnit();
+                        
+                        u.Progress = 1;
+                        u.ResName  = objs[i].name;
+                        u.ResObj   = objs[i];
+
+                        if ( u.ResName == objName )
+                        {
+                            unit = u;
+                        }
+                        
+                        resBundle.ResUnits.Add( u );
+                    }
+                }
+                
+                ab.Unload( false );
+            }
+            
+            return unit;
+        }
+        
+        /// <summary>
+        /// 加载 Assetbundle
+        /// </summary>
+        /// <param name="abPath"> Assetbundle 路径 </param>
+        /// <param name="abName"> Assetbundle 名称 </param>
         /// <param name="callback"> 加载完成回调 , param1 状态码, param2 资源 </param>
         public static void AsyncLoad( string abPath, string abName, Action<int, ResUnit> callback = null )
         {

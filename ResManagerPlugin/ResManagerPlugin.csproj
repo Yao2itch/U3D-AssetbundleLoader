@@ -34,16 +34,17 @@
     <Reference Include="System" />
     <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
       <HintPath>..\ThirdPlugins\UnityEngine.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Src\Common\GameObjectHelper.cs" />
+    <Compile Include="Src\Common\Task.cs" />
+    <Compile Include="Src\Common\TaskManager.cs" />
     <Compile Include="Src\ResBundle.cs" />
     <Compile Include="Src\ResManager.cs" />
     <Compile Include="Src\ResUnit.cs" />
-    <Compile Include="Src\Task.cs" />
-    <Compile Include="Src\TaskManager.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
