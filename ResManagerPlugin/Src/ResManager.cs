@@ -17,12 +17,63 @@ namespace ResManagerPlugin
 
         public static void Release()
         {
-            if( _resCache != null )
+            if( _resCache != null 
+                && _resCache.Keys.Count > 0 )
             {
+                foreach( var key in _resCache.Keys )
+                {
+                    _resCache[key].Release();
+                }
+
                 _resCache.Clear();
             }
         }
+        
+        /// <summary>
+        /// 异步加载 Assetbundles
+        /// </summary>
+        /// <param name="abPath"> Assetbundles 路径 </param>
+        /// <param name="abNames"> Assetbundles 名称 </param>
+        /// <param name="callback"> 加载完一个回调 param1 状态码, param2 对象们 </param>
+        public static IEnumerator AsyncLoadScenes( string abPath, string[] abNames = null, Action<int,GameObject[]> callback = null )
+        {
+            if ( !Directory.Exists( abPath ) )
+            {
+                yield break;
+            }
 
+            if ( abNames != null 
+                && abNames.Length > 0 )
+            {
+                for ( int i = 0; i < abNames.Length; ++i )
+                {
+                    if ( string.IsNullOrEmpty( abNames[i] ) )
+                    {
+                        continue;
+                    }
+
+                    string fullPath = Path.Combine( abPath, abNames[i] );
+                    
+                    if ( File.Exists( fullPath ) )
+                    {
+                        Debug.Log(" ## Uni Output ## cls:ResManager func:LoadAssetBundles info: load ab Path " + fullPath );
+                        
+                        Task.CreateTask( AsyncLoadScene( abNames[i], fullPath, ( state, gObjs ) =>
+                        {
+                            if ( callback != null )
+                            {
+                                callback( state, gObjs );
+                            }
+                        }));
+                    }
+                    else
+                    {
+                        Debug.LogError( " ## Uni Output ## cls:ResManager func:LoadAssetBundles info: ab file not exist " + fullPath );
+                    }
+                }
+            }
+        }
+        
         /// <summary>
         /// 加载 Assetbundle
         /// </summary>
@@ -63,20 +114,58 @@ namespace ResManagerPlugin
                         u.Progress = 1;
                         u.ResName  = objs[i].name;
                         u.ResObj   = objs[i];
+                        
+                        if( objs[i] == null )
+                        {
+                            Debug.LogError(" ## Uni Output ## cls:ResManager func:Load info: load obj error ! ");
+                        }
 
                         if ( u.ResName == objName )
-                        {
+                        {                            
                             unit = u;
                         }
                         
                         resBundle.ResUnits.Add( u );
                     }
                 }
-                
-                ab.Unload( false );
+
+                _resCache.Add( abName, resBundle );
+                //ab.Unload( false );
             }
             
             return unit;
+        }
+
+        /// <summary>
+        /// 异步加载 Assetbundles
+        /// </summary>
+        /// <param name="abPath"> Assetbundles 路径 </param>
+        /// <param name="abNames"> Assetbundles 名称 </param>
+        /// <param name="callback"> 加载完一个回调 param1 状态码, param2 资源 </param>
+        public static IEnumerator AsyncLoadAssets( string abPath, string[] abNames, Action<int, ResUnit> callback = null )
+        {
+            if ( !Directory.Exists( abPath ) )
+            {
+                yield break;
+            }
+
+            for ( int i = 0; i < abNames.Length; ++i )
+            {
+                string fullPath = Path.Combine( abPath, abNames[i] );
+
+                if ( !File.Exists( fullPath ) )
+                {
+                   continue; 
+                }
+                
+                AsyncLoad( abPath, abNames[i], (state, unit) =>
+                {
+                    if ( callback != null )
+                    {
+                        callback(state, unit);
+                    }
+                });
+            }
         }
         
         /// <summary>
@@ -91,17 +180,17 @@ namespace ResManagerPlugin
 
             if( isShowDebugInfo )
             {
-                UnityEngine.Debug.Log( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoad info: load ab fullpath " + fullPath );
+                Debug.Log( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoad info: load ab fullpath " + fullPath );
             }
 
             if ( Application.platform == RuntimePlatform.WindowsEditor 
                 || Application.platform == RuntimePlatform.WindowsPlayer )
             {
-                if ( !File.Exists(fullPath) )
+                if ( !File.Exists( fullPath ) )
                 {
                     if ( isShowDebugInfo )
                     {
-                        UnityEngine.Debug.LogWarning(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoad info: ab fullpath is not exist " + fullPath);
+                        Debug.LogWarning(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoad info: ab fullpath is not exist " + fullPath);
                     }
 
                     return;
@@ -125,7 +214,7 @@ namespace ResManagerPlugin
             {
                 if ( isShowDebugInfo )
                 {
-                    UnityEngine.Debug.LogWarning( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: ab name is empty " );
+                    Debug.LogWarning( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: ab name is empty " );
                 }
 
                 yield break;
@@ -133,7 +222,7 @@ namespace ResManagerPlugin
 
             if ( isShowDebugInfo )
             {
-                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: ab name " + abName );
+                Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: ab name " + abName );
             }
 
             // Assetbundle 未加载完成，等待加载完成
@@ -147,7 +236,8 @@ namespace ResManagerPlugin
             ResBundle resBundle = null;
             
             // 首次加载 Assetbundle
-            if ( _resCache != null && !_resCache.ContainsKey( abName ) )
+            if ( _resCache != null 
+                && !_resCache.ContainsKey( abName ) )
             {
                 resBundle = new ResBundle();
                 resBundle.Name = abName;
@@ -177,7 +267,7 @@ namespace ResManagerPlugin
 
                 if ( isShowDebugInfo )
                 {
-                    UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: all objs Count " + resBundle.ResUnits.Count );
+                    Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: all objs Count " + resBundle.ResUnits.Count );
                 }
 
                 // 
@@ -185,7 +275,7 @@ namespace ResManagerPlugin
                 {
                     if ( isShowDebugInfo )
                     {
-                        UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: cache obj Name " + resBundle.ResUnits[i].ResName );
+                        Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: cache obj Name " + resBundle.ResUnits[i].ResName );
                     }
                     
                     if ( callback != null )
@@ -207,9 +297,11 @@ namespace ResManagerPlugin
             }
 
             var bundles = request.assetBundle;
-
+            
             if ( bundles != null )
             {
+                resBundle.ResAB = bundles;
+                
                 var objs = bundles.LoadAllAssets();
 
                 if ( objs != null )
@@ -220,7 +312,7 @@ namespace ResManagerPlugin
                         {
                             UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: all objs Count " + objs.Length );
                         }
-                        
+
                         resBundle.ResUnitCount = objs.Length;
                     }
 
@@ -229,7 +321,7 @@ namespace ResManagerPlugin
                         if( resBundle != null 
                            && !resBundle.ContainResUnit( objs[i].name ) )
                         {
-                            ResUnit unit = new ResUnit()
+                            ResUnit unit = new ResUnit
                             {
                                 ResName = objs[i].name,
                                 ResObj  = objs[i],
@@ -240,7 +332,7 @@ namespace ResManagerPlugin
 
                             if ( isShowDebugInfo )
                             {
-                                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: load obj Name " + unit.ResName );
+                                Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: load obj Name " + unit.ResName );
                             }
 
                             if ( callback != null )
@@ -248,6 +340,11 @@ namespace ResManagerPlugin
                                 callback( 1, unit );
                             }
                         }
+                    }
+
+                    if ( resBundle != null )
+                    {
+                        resBundle.isLoaded = true;
                     }
                 }
                 else
@@ -259,8 +356,6 @@ namespace ResManagerPlugin
 
                     callback(0, null);
                 }
-
-                bundles.Unload(false);
             }
             else
             {
@@ -278,7 +373,7 @@ namespace ResManagerPlugin
         public static void AsyncLoadAssetByKey<T>( string objName, string abPath, string abName, Action<int,ResUnit> callback = null ) where T : UnityEngine.Object
         {
             string fullPath = Path.Combine( abPath ,abName );
-
+            
             if ( isShowDebugInfo )
             {
                 UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: async load ab fullpath " + fullPath);
@@ -288,11 +383,8 @@ namespace ResManagerPlugin
             {
                 if ( !File.Exists( fullPath ) )
                 {
-                    if ( isShowDebugInfo )
-                    {
-                        UnityEngine.Debug.LogWarning( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: ab fullpath is not exist " + fullPath );
-                    }
-
+                    UnityEngine.Debug.LogError( " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: ab fullpath is not exist " + fullPath );
+                 
                     return;
                 }
             }
@@ -346,14 +438,14 @@ namespace ResManagerPlugin
             }
             else
             {
-                resBundle = _resCache[objName];
+                resBundle = _resCache[abName];
 
                 // 对象还未加载，阻塞流程
                 while ( resBundle.ResUnits == null
                     || resBundle.ResUnits.Count < 0
                     || resBundle.ResUnits.Count > 0 && resBundle.ResUnits.Count < resBundle.ResUnitCount )
                 {
-                    resBundle = _resCache[objName];
+                    resBundle = _resCache[abName];
 
                     yield return null;
                 }
@@ -365,7 +457,7 @@ namespace ResManagerPlugin
 
                 if ( callback != null)
                 {
-                    callback( 1, resBundle.FindResUnit( objName ) );
+                    callback( 1, resBundle.FindResUnit(objName) );
                 }
 
                 yield break;
@@ -404,13 +496,16 @@ namespace ResManagerPlugin
                                 ResObj = objs[i] as T
                             };
 
+                            resBundle.ResAB = bundles;
                             resBundle.ResUnits.Add(u);
+
+                            UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: obj name " + objs[i].name );
 
                             if ( objName.Equals( objs[i].name ) )
                             {
                                 if ( isShowDebugInfo )
                                 {
-                                    UnityEngine.Debug.LogWarning(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: target obj name " + objName);
+                                    UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: target obj name " + objName);
                                 }
 
                                 if ( callback != null )
@@ -420,13 +515,18 @@ namespace ResManagerPlugin
                             }
                         }
                     }
+
+                    if ( resBundle != null )
+                    {
+                        resBundle.isLoaded = true;
+                    }
                 }
                 else
                 {
                     callback(0, null);
                 }
 
-                bundles.Unload(false);
+                //bundles.Unload(false);
             }
             else
             {
@@ -462,7 +562,7 @@ namespace ResManagerPlugin
                 }
             }
 
-            Task.CreateTask( AsyncLoadScene( abName, abName, fullPath, callback ) );
+            Task.CreateTask( AsyncLoadScene( abName, fullPath, callback ) );
         }
 
         /// <summary>
@@ -473,13 +573,8 @@ namespace ResManagerPlugin
         /// <param name="fullPath"> Assetbundle 路径 </param>
         /// <param name="callback"> 加载完成回调 , param1 状态码, param2 资源 </param>
         /// <returns></returns>
-        private static IEnumerator AsyncLoadScene( string key, string abName, string fullPath, Action<int, GameObject[]> callback = null )
+        private static IEnumerator AsyncLoadScene( string abName, string fullPath, Action<int, GameObject[]> callback = null )
         {
-            if ( string.IsNullOrEmpty( key ) )
-            {
-                yield break;
-            }
-
             if ( isShowDebugInfo )
             {
                 Debug.Log(" ## Uni Output ## module:ResManagerPlugin cls:ResManager func:AsyncLoadScene info: scene assetbudnle fullPath " + fullPath);
@@ -503,7 +598,7 @@ namespace ResManagerPlugin
 
                 ResUnit unit = new ResUnit
                 {
-                    ResName = key
+                    ResName = abName
                 };
 
                 resBundle.ResUnits.Add(unit);
@@ -513,22 +608,22 @@ namespace ResManagerPlugin
                     Debug.Log( " ## Uni Output ## module:ResManagerPlugin cls:ResManager func:AsyncLoadScene info: load scene name " + unit.ResName );
                 }
 
-                _resCache.Add(abName, resBundle);
+                _resCache.Add( abName, resBundle );
             }
             else
             {
-                resBundle = _resCache[key];
+                resBundle = _resCache[abName];
 
                 while ( resBundle == null 
                     || resBundle.ResUnits.Count == 0
                     || resBundle.ResUnits.Count > 0 && resBundle.ResUnits.Count < resBundle.ResUnitCount  )
                 {
-                    resBundle = _resCache[key];
+                    resBundle = _resCache[abName];
 
                     yield return null;
                 }
 
-                ResUnit unit = resBundle.FindResUnit(key);
+                ResUnit unit = resBundle.FindResUnit(abName);
 
                 if ( isShowDebugInfo )
                 {
@@ -565,6 +660,7 @@ namespace ResManagerPlugin
 
                     if ( resBundle != null )
                     {
+                        resBundle.ResAB = bundles;
                         resBundle.ResUnitCount = scenePaths.Length;
                     }
 
@@ -574,11 +670,16 @@ namespace ResManagerPlugin
 
                         if ( !string.IsNullOrEmpty( scenePath ) )
                         {
-                            UnityEngine.SceneManagement.Scene srcScene = SceneManager.GetActiveScene();
+                            Scene srcScene = SceneManager.GetActiveScene();
                             
-                            SceneManager.LoadScene( scenePath, LoadSceneMode.Additive );
+                            AsyncOperation asyncOp = SceneManager.LoadSceneAsync( scenePath, LoadSceneMode.Additive );
 
-                            UnityEngine.SceneManagement.Scene destScene = SceneManager.GetSceneByPath(scenePath);
+                            while ( !asyncOp.isDone )
+                            {
+                                yield return null;
+                            }
+                            
+                            Scene destScene = SceneManager.GetSceneByPath(scenePath);
 
                             while ( !destScene.isLoaded )
                             {
@@ -589,7 +690,7 @@ namespace ResManagerPlugin
 
                             SceneManager.SetActiveScene(destScene);
 
-                            ResUnit resUnit = new ResUnit()
+                            ResUnit resUnit = new ResUnit
                             {
                                 ResName  = scenePath,
                                 Progress = 1f,
@@ -602,7 +703,7 @@ namespace ResManagerPlugin
                                 resBundle.ResUnits.Add( resUnit );
                             }
 
-                            if (isShowDebugInfo)
+                            if ( isShowDebugInfo )
                             {
                                 Debug.Log( " ## Uni Output ## module:ResManagerPlugin cls:ResManager func:AsyncLoadScene info: load scene name " + resUnit.ResName );
                             }
@@ -613,9 +714,14 @@ namespace ResManagerPlugin
                             }
                         }
                     }
+
+                    if ( resBundle != null )
+                    {
+                        resBundle.isLoaded = true;
+                    }
                 }
 
-                bundles.Unload(false);
+                //bundles.Unload(false);
             }
         }
     }
