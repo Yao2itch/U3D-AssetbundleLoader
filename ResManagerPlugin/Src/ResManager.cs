@@ -80,7 +80,7 @@ namespace ResManagerPlugin
         /// <param name="abPath"> Assetbundle 路径 </param>
         /// <param name="abName"> Assetbundle 名称 </param>
         /// <param name="objName"> 对象名 </param>
-        public static ResUnit Load( string abPath, string abName, string objName )
+        public static ResUnit Load<T>( string abPath, string abName, string objName ) where T : UnityEngine.Object
         {
             ResUnit unit = null;
             
@@ -89,7 +89,7 @@ namespace ResManagerPlugin
             if( _resCache != null 
                 && _resCache.ContainsKey( abName ) )
             {
-                unit = _resCache[ abName ].FindResUnit( objName );
+                unit = _resCache[ abName ].FindResUnit<T>( objName );
                 
                 return unit;
             }
@@ -319,7 +319,7 @@ namespace ResManagerPlugin
                     for ( int i = 0; i < objs.Length; ++i )
                     {
                         if( resBundle != null 
-                           && !resBundle.ContainResUnit( objs[i].name ) )
+                           && !resBundle.ContainResUnit( objs[i].name, objs[i].GetType() ) ) 
                         {
                             ResUnit unit = new ResUnit
                             {
@@ -332,6 +332,7 @@ namespace ResManagerPlugin
 
                             if ( isShowDebugInfo )
                             {
+                                Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: load obj Type " + unit.ResObj.GetType() );
                                 Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAllAssets info: load obj Name " + unit.ResName );
                             }
 
@@ -370,13 +371,18 @@ namespace ResManagerPlugin
         /// <param name="abPath"> Assetbundle 路径 </param>
         /// <param name="abName"> Assetbundle 名称 </param>
         /// <param name="callback"> 加载完成回调 , param1 状态码, param2 资源 </param>
-        public static void AsyncLoadAssetByKey<T>( string objName, string abPath, string abName, Action<int,ResUnit> callback = null ) where T : UnityEngine.Object
+        public static void AsyncLoadAssetByKey<T>( string objName, string abPath, string abName, Action<int,ResBundle,ResUnit> callback = null ) where T : UnityEngine.Object
         {
+            if ( string.IsNullOrEmpty( objName ) )
+            {
+                return;
+            }
+            
             string fullPath = Path.Combine( abPath ,abName );
             
             if ( isShowDebugInfo )
             {
-                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: async load ab fullpath " + fullPath);
+                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: async load asset name " + objName);
             }
 
             if ( Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer )
@@ -400,50 +406,76 @@ namespace ResManagerPlugin
         /// <param name="fullPath"> Assetbundle 文件路径 </param>
         /// <param name="callback"> 加载完成回调 , param1 状态码, param2 资源 </param>
         /// <returns></returns>
-        private static IEnumerator AsyncLoadByKey<T>( string abName, string objName, string fullPath, Action<int,ResUnit> callback = null ) where T : UnityEngine.Object
+        private static IEnumerator AsyncLoadByKey<T>(string abName, string objName, string fullPath,
+            Action<int, ResBundle, ResUnit> callback = null) where T : UnityEngine.Object
         {
-            if ( string.IsNullOrEmpty( abName ) )
+            if (string.IsNullOrEmpty(abName))
             {
-                if ( isShowDebugInfo )
+                if (isShowDebugInfo)
                 {
-                    UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: ab name is empty ");
+                    UnityEngine.Debug.Log(
+                        " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: ab name is empty ");
                 }
 
                 yield break;
             }
 
-            if ( isShowDebugInfo )
+            if (isShowDebugInfo)
             {
-                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: ab name is " + abName );
+                UnityEngine.Debug.Log(
+                    " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: ab name is " +
+                    abName);
             }
 
             // 对象还未加载，等待加载完成
-            while ( _resCache != null
-                    && _resCache.ContainsKey( abName )
-                    && !_resCache[abName].ContainResUnit( objName ) )
+            while (_resCache != null
+                   && _resCache.ContainsKey(abName)
+                   && !_resCache[abName].ContainResUnit<T>(objName))
             {
+                if ( isShowDebugInfo )
+                {
+                    UnityEngine.Debug.Log(
+                        " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: waiting asset " +
+                        objName);
+                }
+
                 yield return null;
             }
-
-            ResBundle resBundle = null;
             
-            if ( _resCache != null && !_resCache.ContainsKey( abName ) )
+            ResBundle resBundle = null;
+
+            if (_resCache != null && !_resCache.ContainsKey(abName))
             {
+                if (isShowDebugInfo)
+                {
+                    UnityEngine.Debug.Log(
+                        " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: new res bundle ");
+                }
+
                 resBundle = new ResBundle()
                 {
                     Name = abName
                 };
-                    
-                _resCache.Add( abName, resBundle );
+
+                _resCache.Add(abName, resBundle);
             }
             else
             {
+                if (isShowDebugInfo)
+                {
+                    UnityEngine.Debug.Log(
+                        " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: load from cache res bundle ");
+                    UnityEngine.Debug.Log(
+                        " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: load from cache res num " +
+                        _resCache.Count);
+                }
+
                 resBundle = _resCache[abName];
 
                 // 对象还未加载，阻塞流程
-                while ( resBundle.ResUnits == null
-                    || resBundle.ResUnits.Count < 0
-                    || resBundle.ResUnits.Count > 0 && resBundle.ResUnits.Count < resBundle.ResUnitCount )
+                while (resBundle.ResUnits == null
+                       || resBundle.ResUnits.Count < 0
+                       || resBundle.ResUnits.Count > 0 && resBundle.ResUnits.Count < resBundle.ResUnitCount)
                 {
                     resBundle = _resCache[abName];
 
@@ -452,65 +484,97 @@ namespace ResManagerPlugin
 
                 if ( isShowDebugInfo )
                 {
-                    UnityEngine.Debug.LogWarning(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: cache obj name " + objName);
+                    UnityEngine.Debug.LogWarning(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: load cache obj name " + objName);
                 }
 
-                if ( callback != null)
+                if (callback != null)
                 {
-                    callback( 1, resBundle.FindResUnit(objName) );
+                    callback(1, resBundle, resBundle.FindResUnit<T>(objName));
                 }
 
                 yield break;
             }
 
+            /*UnityEngine.Debug.Log(
+                " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: load from file bundle " +
+                fullPath);*/
+
+            //WWW request = WWW.LoadFromCacheOrDownload(fullPath, 1);
             AssetBundleCreateRequest request = AssetBundle.LoadFromFileAsync( fullPath );
 
             while ( !request.isDone )
             {
-                ResUnit unit = resBundle.FindResUnit( objName );
-                if( unit != null )
+                ResUnit unit = resBundle.FindResUnit<T>(objName);
+                if (unit != null)
                 {
                     unit.Progress = request.progress;
-                }
 
+                    Debug.Log(" load ab progress ++ " + unit.Progress);
+                }
+                
                 yield return null;
             }
-            
-            var bundles = request.assetBundle;
 
+            /*if ( request != null && !string.IsNullOrEmpty( request.error ) )
+            {
+                UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadByKey info: load from file bundle err !! " + request.error );                
+            }*/
+    
+            var bundles = request.assetBundle;
+            
             if ( bundles != null )
             {
                 var objs = bundles.LoadAllAssets();
-
+                
                 if ( objs != null )
                 {
+                    if ( isShowDebugInfo )
+                        UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: total obj num  " + objs.Length );
+
                     for ( int i = 0; i < objs.Length; ++i )
                     {
                         if( resBundle != null
-                           && !resBundle.ContainResUnit( objs[i].name ) )
+                           && !resBundle.ContainResUnit<T>( objs[i].name ) )
                         {
+                            T resObj = objs[i] as T;
+                            
                             ResUnit u = new ResUnit()
                             {
                                 ResName = objs[i].name,
                                 Progress = 1f,
-                                ResObj = objs[i] as T
+                                ResObj = ( resObj == null ) ? objs[i] : resObj,
                             };
 
+                            if ( u.ResObj == null )
+                            {
+                                UnityEngine.Debug.LogError(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: cache obj error " + objs[i].name );
+                            }
+                            
                             resBundle.ResAB = bundles;
                             resBundle.ResUnits.Add(u);
 
-                            UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: obj name " + objs[i].name );
+                            if ( isShowDebugInfo )
+                            {
+                                UnityEngine.Debug.Log(
+                                    " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: obj index " +
+                                    i );
+                                
+                                UnityEngine.Debug.Log(
+                                    " ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: obj name " +
+                                    objs[i].name );
+                            }
 
                             if ( objName.Equals( objs[i].name ) )
                             {
                                 if ( isShowDebugInfo )
                                 {
+                                    UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: target obj type " + objs[i].GetType().Name );
                                     UnityEngine.Debug.Log(" ## Uni Output ## moudule: ResManager Plugin cls:ResManager func:AsyncLoadAssetByKey info: target obj name " + objName);
                                 }
 
                                 if ( callback != null )
                                 {
-                                    callback( 1, u );
+                                    callback( 1, resBundle ,u );
                                 }
                             }
                         }
@@ -523,17 +587,20 @@ namespace ResManagerPlugin
                 }
                 else
                 {
-                    callback(0, null);
+                    callback( 0, resBundle , null );
                 }
 
                 //bundles.Unload(false);
             }
             else
             {
-                callback( 0, null );
+                callback( 0, resBundle, null );
             }
+            
+            //request.Dispose();
+            request = null;
         }
-
+        
         /// <summary>
         /// 加载场景
         /// </summary>

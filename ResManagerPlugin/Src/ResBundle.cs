@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using Object = System.Object;
 
 namespace ResManagerPlugin
 {
@@ -69,6 +70,38 @@ namespace ResManagerPlugin
             }
         }
         
+        public bool ContainResUnit<T>( string name ) where T : UnityEngine.Object
+        {
+            bool res = false;
+
+            if( ResUnits != null )
+            {
+                if( ResUnits.Find( u => u.ResName.Equals(name) 
+                                        && u.ResObj.GetType().Equals( typeof(T) ) ) != null )
+                {
+                    res = true;
+                }
+            }
+
+            return res;
+        }
+        
+        public bool ContainResUnit( string name, Type type )
+        {
+            bool res = false;
+
+            if( ResUnits != null )
+            {
+                if( ResUnits.Find( u => u.ResName.Equals(name) 
+                                        && u.ResObj.GetType().Equals( type ) ) != null )
+                {
+                    res = true;
+                }
+            }
+
+            return res;
+        }
+        
         public bool ContainResUnit( string name )
         {
             bool res = false;
@@ -84,6 +117,19 @@ namespace ResManagerPlugin
             return res;
         }
 
+        public ResUnit FindResUnit<T>( string name ) where T : UnityEngine.Object
+        {
+            ResUnit unit = null;
+
+            if( ResUnits != null )
+            {
+                unit = ResUnits.Find( u => u.ResName.Equals( name )
+                                           && u.ResObj.GetType().Equals(typeof(T) ) );
+            }
+
+            return unit;
+        }
+        
         public ResUnit FindResUnit( string name )
         {
             ResUnit unit = null;
